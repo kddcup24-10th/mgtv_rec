@@ -24,16 +24,7 @@ def make_vid_pair_sim (df, vid_info,  group_col, use_cols, agg) :
     df_features = df_left.group_by(['vid', 'vid_right'], maintain_order=True).agg(agg_expr(agg, 'vid_pair_sim'))
     return df_features
 
-#召回构建训练样本
-def create_data_sample (df_history_short_click_playtime, 
-                        df_label,
-                        history_seq_num,
-                        df_candidate_did, 
-                        df_candidate_vid, 
-                        df_pair_vid_sim,
-                        top_pair_sim_N=50, 
-                        hots_N=10,
-                        stage='train') :
+def itemcf(df_history_short_click_playtime, df_candidate_did, df_pair_vid_sim,history_seq_num, top_pair_sim_N):
     # 第一路召回：item2item 以同时访问两个视频的用户数来衡量相似度
     df_sample = df_history_short_click_playtime.filter(
         pl.col('did').is_in(df_candidate_did['did'].unique().to_list())
@@ -43,7 +34,9 @@ def create_data_sample (df_history_short_click_playtime,
     df_sample = df_sample.drop('vid')
     df_sample = df_sample.rename({'vid_right' : 'vid'})
     df_sample = df_sample.select(['did', 'vid', 'count_vid_pair_sim_did', 'sum_vid_pair_sim_play_time_right'])
+    return df_sample
 
+def hot_item_recall(df_history_short_click_playtime, df_candidate_did, hots_N):
     # 第二路召回： 召回热门物品
     # 每个did补label日最近一天的热门vid
     hots_N_vids = df_history_short_click_playtime.filter(
@@ -55,6 +48,20 @@ def create_data_sample (df_history_short_click_playtime,
     # 补热门
     # 本质上也是在增加样本 增加热门物品的样本对
     df_added_sample = df_added_sample.explode('hots_N_vids').rename({'hots_N_vids' : 'vid'})
+    return df_added_sample
+#召回构建训练样本
+def create_data_sample (df_history_short_click_playtime, 
+                        df_label,
+                        history_seq_num,
+                        df_candidate_did, 
+                        df_candidate_vid, 
+                        df_pair_vid_sim,
+                        top_pair_sim_N=50, 
+                        hots_N=10,
+                        stage='train') :
+    df_itemcf_sample = itemcf(df_history_short_click_playtime, df_candidate_did, df_pair_vid_sim,history_seq_num, top_pair_sim_N)
+    
+    df_hot_items_sample = hot_item_recall(df_history_short_click_playtime, df_candidate_did, hots_N)
     
     # 第三路召回：item2item 以同时访问两个视频的时长来衡量相似度
     # df_pair_vid_sim = df_pair_vid_sim.sort(['vid', 'count_vid_pair_sim_did'], descending=True)
@@ -66,8 +73,8 @@ def create_data_sample (df_history_short_click_playtime,
     # df_added_sample3 = df_added_sample3.rename({'vid_right' : 'vid'})
     # df_added_sample3 = df_added_sample3.select(['did', 'vid', 'count_vid_pair_sim_did', 'sum_vid_pair_sim_play_time_right'])
     
-    print("Recall Size", df_sample.shape, df_added_sample.shape)
-    df_sample = pl.concat([df_sample, df_added_sample], how="diagonal").unique(('did', 'vid'), keep='first', maintain_order=True)
+    print("Recall Size", df_itemcf_sample.shape, df_hot_items_sample.shape)
+    df_sample = pl.concat([df_itemcf_sample, df_hot_items_sample], how="diagonal").unique(('did', 'vid'), keep='first', maintain_order=True)
     print("Recall Size after unique", df_sample.shape)
     
     df_sample = df_sample.fill_null(0)
@@ -76,18 +83,37 @@ def create_data_sample (df_history_short_click_playtime,
     df_sample = df_sample.filter (
         pl.col('vid').is_in(df_candidate_vid['vid'].to_list())
     )
+    print("candidate_recall_size:", df_sample.shape)
     #测试集不必构造label
     if stage != 'test' :
         df_label = df_label.select(['did', 'vid']).unique()
         df_label = df_label.with_columns(
             pl.lit(1).alias('label')
         )
+        
+        sample_tuples = set(zip(df_sample['did'], df_sample['vid']))
+        label_tuples = set(zip(df_label['did'], df_label['vid']))
+        # 计算重合个数
+        num_overlap = len(sample_tuples.intersection(label_tuples))
+
+        # 计算不重合个数
+        num_not_overlap_sample = len(sample_tuples - label_tuples)  # df_sample 中独有的 (did, vid)
+        num_not_overlap_label = len(label_tuples - sample_tuples)  # df_label 中独有的 (did, vid)
+
+        # 打印结果
+        print(f"重合个数: {num_overlap}")
+        print(f"df_sample 中不匹配的个数: {num_not_overlap_sample}")
+        print(f"df_label 中不匹配的个数: {num_not_overlap_label}")
+        print("包含正样:",num_overlap / df_sample.shape[0], "召回率:", num_overlap / df_label.shape[0])
+        
+        
         df_sample = df_sample.join(df_label, on=['did', 'vid'], how='left')
 
         #构建正负样本
         df_sample = df_sample.with_columns(
             pl.col('label').fill_null(0)
         )    
+    print("candidate_recall_size with lable:", df_sample.shape, "label size", df_label.shape)
     return df_sample
 
 
@@ -188,8 +214,8 @@ def make_pipline(df_history_short_click_playtime, df_history_short_show, df_labe
                                           df_candidate_did=df_candidate_did, 
                                           df_candidate_vid=df_candidate_vid, 
                                           df_pair_vid_sim=df_pair_click_sim,
-                                          top_pair_sim_N=50, 
-                                          hots_N=20,
+                                          top_pair_sim_N=10, 
+                                          hots_N=15,
                                           stage=stage)
 
     df_sample = make_features (df_sample, df_history_short_click_playtime, 
