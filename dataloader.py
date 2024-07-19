@@ -10,6 +10,7 @@ def load_data(data_path):
     df_short_click_playtime_set = []
     df_short_show_set = []
     for day in tqdm(['day_1', 'day_2', 'day_3', 'day_4', 'day_5', 'day_6', 'day_7', 'day_8', 'day_9', 'day_10', 'day_11', 'day_12',]) :
+    # for day in tqdm(['day_1','day_2']) :
         flag = int(day.split("_")[1])
         df_short_click_playtime = pl.read_csv(f'{data_path}/{day}/short_click_playtime.csv')
         df_short_click_playtime = df_short_click_playtime.with_columns (
@@ -35,6 +36,7 @@ def load_data(data_path):
     df_candidate_did_A = pl.read_csv(f'{data_path}/df_candidate_did_A.csv')
     df_candidate_vid_A = pl.read_csv(f'{data_path}/df_candidate_vid_A.csv')
 
+    user_info = pl.read_csv(f'{data_path}/user_info_not_filter_new.csv')
     vid_info = pl.read_csv(f'{data_path}/vid_info.csv')
     vid_info = vid_info.with_columns(pl.col("online_time").str.strptime(pl.Datetime, '%Y-%m-%d %H:%M:%S'))
     
@@ -57,50 +59,56 @@ def load_data(data_path):
     
     train_day = 11
     stage = 'train'
-    df_train_label = df_short_click_playtime.filter(pl.col('day') == train_day)
+    df_train_label_click = df_short_click_playtime.filter(pl.col('day') == train_day)
+    df_train_label_show = df_short_show.filter(pl.col('day') == train_day)
     df_train_history_short_click_playtime = df_short_click_playtime.filter(pl.col('day') < train_day)
     df_train_history_short_show = df_short_show.filter(pl.col('day') < train_day)
     
-    df_candidate_did_train = df_train_label.select('did').unique()
-    df_candidate_vid_train = df_train_label.select('vid').unique()
+    df_candidate_did_train = df_train_label_click.select('did').unique()
+    df_candidate_vid_train = df_train_label_click.select('vid').unique()
     
     
     df_train_sample = make_pipline(df_train_history_short_click_playtime, 
                                df_train_history_short_show, 
-                               df_train_label, 
+                               df_train_label_click,
+                               df_train_label_show, 
                                df_candidate_did_train, 
-                               df_candidate_vid_train, vid_info, stage=stage) 
+                               df_candidate_vid_train, vid_info, user_info, stage=stage, data_path=data_path) 
     
     df_train_sample = reduce_mem_usage(df_train_sample.to_pandas(), verbose=True)
     
     valid_day = 12
     stage = 'valid'
-    df_valid_label = df_short_click_playtime.filter(pl.col('day') == valid_day)
+    df_valid_label_click = df_short_click_playtime.filter(pl.col('day') == valid_day)
+    df_valid_label_show = df_short_show.filter(pl.col('day') == valid_day)
     df_valid_history_short_click_playtime = df_short_click_playtime.filter(pl.col('day') < valid_day)
     df_valid_history_short_show = df_short_show.filter(pl.col('day') < valid_day)
-    df_candidate_did_valid = df_valid_label.select('did').unique()
-    df_candidate_vid_valid = df_valid_label.select('vid').unique()
+    df_candidate_did_valid = df_valid_label_click.select('did').unique()
+    df_candidate_vid_valid = df_valid_label_click.select('vid').unique()
     df_valid_sample = make_pipline(df_valid_history_short_click_playtime, 
                                df_valid_history_short_show, 
-                               df_valid_label, 
+                               df_valid_label_click, 
+                               df_valid_label_show, 
                                df_candidate_did_valid, 
-                               df_candidate_vid_valid, vid_info, stage=stage) 
+                               df_candidate_vid_valid, vid_info, user_info, stage=stage,data_path=data_path) 
     #df_valid_sample = reduce_memory_usage_pl(df_valid_sample, name='df_valid_sample')
     df_valid_sample = reduce_mem_usage(df_valid_sample.to_pandas(), verbose=True)
     
     
     stage = 'test'
-    df_test_label = pl.DataFrame()
+    df_test_label_click = pl.DataFrame()
+    df_test_label_show = pl.DataFrame()
     df_test_sample = make_pipline(df_short_click_playtime, 
                                df_short_show, 
-                               df_test_label, 
+                               df_test_label_click,
+                               df_test_label_show, 
                                df_candidate_did_A, 
                                df_candidate_vid_A, 
-                               vid_info, stage=stage) 
+                               vid_info, user_info, stage=stage,data_path=data_path) 
     #df_valid_sample = reduce_memory_usage_pl(df_valid_sample, name='df_valid_sample')
     df_test_sample = reduce_mem_usage(df_test_sample.to_pandas(), verbose=True)
 
     gc.collect()
     
-    return df_train_sample, df_valid_sample, df_valid_label, df_test_sample, vid_to_tags
+    return df_train_sample, df_valid_sample, df_valid_label_click, df_test_sample, vid_to_tags
     
