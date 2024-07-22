@@ -3,8 +3,25 @@
 记录
 * Baseline:  本地验证集 0.119 A榜 0.1040
 * Baseline + play time 召回   基本同baseline 合理因为召回的item太多基本没变化
+* Baseline + item2item明星 题材 keywords等等召回 召回效果并不好
 * Baseline + seq=10 sim_N=10 hot_item=15 训练valid auc 0.78 本地验证集 0.1238 A榜: 0.1071
-* Baseline + item2item(相同明星召回) 
+* Baseline + seq=10 sim_n=10 hot_item=20  auc 0.78 本地验证集0.1227 A榜 0.1066
+* Baseline + seq=10 sim_n=20 hot_item=20 auc 0.7823 本地验证集合0.1232 A榜 1064
+* Baseline + seq=10 sim_n=10 hot_item=15 + user_info(过滤0.5后的userinfo,匹配率并不高 训练匹配率(总采样: stars: theme: kind: keyWord: classify_id: (3352567, 17) (4151, 17) (11963, 17) (9963, 17) (4989, 17) (24103, 17)))   auc 0.7841 本地验证集合0.12469 A榜： 0.1076
+* Baseline + seq=10 sim_n=10 hot_item=15  + user_info_all(不过滤时长的userinfo,总采样： stars: theme: kind: keyWord: classify_id: (3199425, 17) (122571, 17) (485980, 17) (635646, 17) (246383, 17) (1097396, 17)   auc 0.804394  本地验证集0.1332  A榜：0.1097
+* Baseline + seq=10 sim_n=10 hot_item=15 + user_info_all + 全量特征共67个特征 auc 0.800796本地验证集合 0.1311 A榜 0.1083
+* Baseline + seq=10 sim_n=50 hot_item=20 + user_info_all_new + 全量特征 v2 
+* Baseline + seq=10 sim_n=10  hot_item=15  + user_info_all_new + 全量特征 + regression v1 auc 0.797467   本地验证集0.13316  A榜 0.1026     本地验证集上升但是A榜没变化 难道是引入用户特征的时候采用了12天长视频数据的原因？
+
+* TODO: lightgcn训练召回模型
+* TODO: 更换label
+
+
+长视频候选用户统计:
+* 全部长视频记录中用户为短视频点击的条数： (33109888, 3)
+* 用户为候选用户的条数 (2455631,3)
+* 用户为a + b的条数  (34556453, 3)
+* 用户为全部用户的条数 (428310531, 3) 聚合后(225765727, 3)
 
 
 

@@ -18,6 +18,7 @@ def train(df_train_sample, df_valid_sample, df_valid_label, df_test_sample, vid_
         #'ndcg_at': [10],
         #'group_column': 'did',      
         'objective': 'binary', #定义的目标函数
+        # 'objective': 'regression',  
         #'metric': {'auc', 'binary_logloss'},
         'metric': {'auc'},
         'boosting_type' : 'gbdt',
