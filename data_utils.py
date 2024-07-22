@@ -29,6 +29,7 @@ def itemcf(df_history_short_click_playtime, df_candidate_did, df_pair_vid_sim,hi
     df_sample = df_history_short_click_playtime.filter(
         pl.col('did').is_in(df_candidate_did['did'].unique().to_list())
     ).group_by('did').tail(history_seq_num) # 获取candidate用户的历史history_seq_num条数据
+    
     df_sample = df_sample.join(df_pair_vid_sim.group_by('vid').head(top_pair_sim_N), on='vid', how='left') #
     # 这是为了构造更多的样本作为负样本 因此采用vid_right替换vid  
     df_sample = df_sample.drop('vid')
@@ -49,6 +50,7 @@ def hot_item_recall(df_history_short_click_playtime, df_candidate_did, hots_N):
     # 本质上也是在增加样本 增加热门物品的样本对
     df_added_sample = df_added_sample.explode('hots_N_vids').rename({'hots_N_vids' : 'vid'})
     return df_added_sample
+
 #召回构建训练样本
 def create_data_sample (df_history_short_click_playtime, 
                         df_label,
@@ -59,8 +61,10 @@ def create_data_sample (df_history_short_click_playtime,
                         top_pair_sim_N=50, 
                         hots_N=10,
                         stage='train') :
+    # 物品召回
     df_itemcf_sample = itemcf(df_history_short_click_playtime, df_candidate_did, df_pair_vid_sim,history_seq_num, top_pair_sim_N)
     
+    # 热门物品召回
     df_hot_items_sample = hot_item_recall(df_history_short_click_playtime, df_candidate_did, hots_N)
     
     # 第三路召回：item2item 以同时访问两个视频的时长来衡量相似度
